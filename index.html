@@ -1,50 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>ESP32 Motor PID BLE Control</title>
+  <title>ESP32 Motor Control</title>
 </head>
 <body>
-  <h2>Motor PID Control via BLE</h2>
-  <button onclick="connect()">Connect to ESP32</button><br><br>
-  <label>Target RPM:</label>
-  <input type="number" id="rpmInput" value="150" min="0" max="300">
-  <button onclick="sendRPM()">Set RPM</button>
-  <p id="status"></p>
-  <p>Current RPM: <span id="currentRPM">?</span></p>
+  <h2>ESP32 BLE Motor Control</h2>
+  <button onclick="connect()">Connect</button>
+  <br><br>
+  <input type="range" id="speed" min="-255" max="255" value="0" oninput="sendSpeed(this.value)">
+  <p>Target Speed: <span id="targetVal">0</span></p>
+  <p>Current RPM: <span id="rpm">N/A</span></p>
+
   <script>
-    let bleDevice, bleChar;
+    let device, server, service, txChar, rxChar;
+
     const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
-    const CHAR_UUID = "abcdefab-1234-5678-1234-abcdefabcdef";
+    const RX_UUID = "12345678-1234-1234-1234-1234567890ac";
+    const TX_UUID = "12345678-1234-1234-1234-1234567890ad";
 
     async function connect() {
-      try {
-        bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: 'ESP32 Motor Controller' }],
-          optionalServices: [SERVICE_UUID]
-        });
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        bleChar = await service.getCharacteristic(CHAR_UUID);
-        document.getElementById('status').textContent = "Connected!";
-        bleChar.startNotifications();
-        bleChar.addEventListener('characteristicvaluechanged', handleNotify);
-      } catch (err) {
-        document.getElementById('status').textContent = "Connection failed: " + err;
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: "ESP32-Motor" }],
+        optionalServices: [SERVICE_UUID]
+      });
+
+      server = await device.gatt.connect();
+      service = await server.getPrimaryService(SERVICE_UUID);
+      rxChar = await service.getCharacteristic(RX_UUID);
+      txChar = await service.getCharacteristic(TX_UUID);
+
+      await txChar.startNotifications();
+      txChar.addEventListener("characteristicvaluechanged", handleNotifications);
+
+      alert("Connected to ESP32!");
+    }
+
+    function sendSpeed(val) {
+      document.getElementById("targetVal").textContent = val;
+      if (rxChar) {
+        const encoder = new TextEncoder();
+        rxChar.writeValue(encoder.encode(val.toString()));
       }
     }
 
-    function sendRPM() {
-      if (!bleChar) return;
-      let rpm = document.getElementById('rpmInput').value;
-      let encoder = new TextEncoder();
-      bleChar.writeValue(encoder.encode(rpm));
-      document.getElementById('status').textContent = "Sent target RPM: " + rpm;
-    }
-
-    function handleNotify(event) {
-      let value = new TextDecoder().decode(event.target.value);
-      document.getElementById('currentRPM').textContent = value;
+    function handleNotifications(event) {
+      const value = new TextDecoder().decode(event.target.value);
+      document.getElementById("rpm").textContent = value;
     }
   </script>
 </body>
