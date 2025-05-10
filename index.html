@@ -1,51 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>ESP32 Motor Control</title>
+  <title>ESP32 Bluetooth Motor Control</title>
 </head>
 <body>
-  <h2>Motor Speed Control (BLE)</h2>
-  <label>Set Target RPM:</label>
-  <input type="number" id="targetRPM" value="150">
-  <button onclick="sendRPM()">Send</button>
-  <p>Current RPM: <span id="currentRPM">--</span></p>
-  <button onclick="connect()">Connect to ESP32</button>
+  <h2>Motor Speed Control</h2>
+  <button onclick="connectBLE()">🔗 Connect</button><br><br>
+  <label>Left Motor:</label>
+  <input type="range" id="leftSpeed" min="-255" max="255" value="0" oninput="sendSpeed()"><br>
+  <label>Right Motor:</label>
+  <input type="range" id="rightSpeed" min="-255" max="255" value="0" oninput="sendSpeed()"><br><br>
+
+  <h3>Feedback:</h3>
+  <pre id="feedback"></pre>
 
   <script>
-    let device, server, service;
-    let targetChar, currentChar;
+    let device, server, service, rxChar, txChar;
 
-    const serviceUUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-    const targetUUID  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-    const currentUUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-
-    async function connect() {
+    async function connectBLE() {
       device = await navigator.bluetooth.requestDevice({
-        filters: [{ namePrefix: 'ESP32' }],
-        optionalServices: [serviceUUID]
+        filters: [{ name: "ESP32-Robot" }],
+        optionalServices: ["12345678-1234-5678-1234-56789abcdef0"]
       });
+
       server = await device.gatt.connect();
-      service = await server.getPrimaryService(serviceUUID);
+      service = await server.getPrimaryService("12345678-1234-5678-1234-56789abcdef0");
 
-      targetChar = await service.getCharacteristic(targetUUID);
-      currentChar = await service.getCharacteristic(currentUUID);
+      rxChar = await service.getCharacteristic("12345678-1234-5678-1234-56789abcdef1");
+      txChar = await service.getCharacteristic("12345678-1234-5678-1234-56789abcdef2");
 
-      await currentChar.startNotifications();
-      currentChar.addEventListener('characteristicvaluechanged', e => {
-        const val = new TextDecoder().decode(e.target.value);
-        document.getElementById('currentRPM').innerText = val;
+      await txChar.startNotifications();
+      txChar.addEventListener("characteristicvaluechanged", (event) => {
+        const value = new TextDecoder().decode(event.target.value);
+        document.getElementById("feedback").textContent = value;
       });
 
-      alert("Connected to ESP32");
+      alert("Connected to ESP32!");
     }
 
-    async function sendRPM() {
-      const rpm = document.getElementById('targetRPM').value;
-      if (targetChar) {
-        const data = new TextEncoder().encode(rpm.toString());
-        await targetChar.writeValue(data);
-      }
+    async function sendSpeed() {
+      if (!rxChar) return;
+      const l = document.getElementById("leftSpeed").value;
+      const r = document.getElementById("rightSpeed").value;
+      const msg = `L${l} R${r}`;
+      await rxChar.writeValue(new TextEncoder().encode(msg));
     }
   </script>
 </body>
