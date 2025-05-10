@@ -20,7 +20,7 @@
     async function connect() {
       try {
         bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: 'ESP32' }],
+          filters: [{ namePrefix: 'ESP32 Motor Controller' }],
           optionalServices: [SERVICE_UUID]
         });
         const server = await bleDevice.gatt.connect();
